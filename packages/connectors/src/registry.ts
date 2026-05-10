@@ -3,7 +3,7 @@
  * Factory pattern + registration for all built-in connectors
  */
 
-import { ConnectorConfig, BaseConnector } from "./types.js";
+import { ConnectorConfig, BaseConnector } from "./base.js";
 import { FileSystemConnector } from "./filesystem.js";
 import { PostgresConnector } from "./postgres.js";
 import { NotionConnector } from "./notion.js";
@@ -50,6 +50,10 @@ export class ConnectorRegistry {
 
   listTypes(): string[] {
     return Array.from(this.factories.keys());
+  }
+
+  listConnectors(): BaseConnector[] {
+    return Array.from(this.instances.values());
   }
 
   // ─── private ──────────────────────────────────────────────────────

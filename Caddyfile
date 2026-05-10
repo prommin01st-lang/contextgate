@@ -1,0 +1,94 @@
+# ============================================================
+# Caddy Reverse Proxy — auto HTTPS via Let's Encrypt
+# ============================================================
+#
+# Domains มี 2 ตัว:
+#   - {$APP_DOMAIN}  → dashboard UI (React)
+#   - {$API_DOMAIN}  → API + MCP endpoint (Hono server)
+#
+# ก่อน deploy:
+#   1. ตั้ง DNS A record ให้ทั้ง 2 domain ชี้มาที่ IP เซิร์ฟเวอร์
+#   2. เปิด port 80 + 443 ใน firewall
+#   3. ตั้ง ACME_EMAIL ใน .env (Let's Encrypt จะส่งแจ้งเตือนต่ออายุ)
+# ============================================================
+
+{
+    email {$ACME_EMAIL}
+    # log {
+    #     output file /var/log/caddy/access.log
+    #     format json
+    # }
+}
+
+# ─── Dashboard (frontend) ───────────────────────────────────
+{$APP_DOMAIN} {
+    reverse_proxy dashboard:80
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Allow embed of API for MCP testing — adjust as needed
+        # Content-Security-Policy "default-src 'self'; ..."
+    }
+
+    encode zstd gzip
+
+    log {
+        output file /var/log/caddy/dashboard.log {
+            roll_size 100mb
+            roll_keep 7
+        }
+    }
+}
+
+# ─── API + MCP endpoint (backend) ────────────────────────────
+{$API_DOMAIN} {
+    # SSE / Streamable HTTP needs flush + long timeouts
+    reverse_proxy server:8899 {
+        flush_interval -1
+        transport http {
+            keepalive 60s
+            keepalive_idle_conns 100
+            response_header_timeout 10m
+            read_timeout 10m
+        }
+    }
+
+    # CORS for the dashboard domain
+    @cors_preflight method OPTIONS
+    handle @cors_preflight {
+        header {
+            Access-Control-Allow-Origin "https://{$APP_DOMAIN}"
+            Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type, Authorization, x-api-key, Mcp-Session-Id"
+            Access-Control-Max-Age "3600"
+        }
+        respond "" 204
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Access-Control-Allow-Origin "https://{$APP_DOMAIN}"
+    }
+
+    # Rate limit by client IP (basic — replace with proper Redis-backed
+    # limiter inside the app for per-API-key control)
+    # rate_limit {
+    #     zone perip {
+    #         key {client_ip}
+    #         events 60
+    #         window 1m
+    #     }
+    # }
+
+    log {
+        output file /var/log/caddy/api.log {
+            roll_size 100mb
+            roll_keep 14
+        }
+    }
+}

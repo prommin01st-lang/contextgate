@@ -1,0 +1,27 @@
+meta {
+  name: Create Workspace
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/workspaces
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "First Work Space",
+    "slug": "default",
+    "settings": {}
+  }
+}
+
+vars:post-response {
+  workspaceId: res.body.data.id
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Delete Workspace
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/workspaces/{{workspaceId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

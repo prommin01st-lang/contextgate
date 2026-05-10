@@ -1,3 +1,19 @@
+/**
+ * Connector base types and abstract class.
+ *
+ * Connectors expose data sources (filesystem, postgres, notion, …) through
+ * a URI-based interface. The MCP server defines a small set of GENERIC
+ * tools (read_file, list_directory, write_file, …) and dispatches each
+ * call to the connector that owns the URI.
+ *
+ * URI scheme convention:
+ *   <type>://<connectorId>/file/<path>
+ *   <type>://<connectorId>/directory/<path>
+ *   <type>://<connectorId>/page/<id>      (notion)
+ *   <type>://<connectorId>/database/<id>  (notion)
+ *   <type>://<connectorId>/table/<name>   (postgres)
+ */
+
 export interface MCPResource {
   uri: string;
   name: string;
@@ -12,11 +28,100 @@ export interface MCPTool {
   inputSchema: object;
 }
 
+export interface ConnectorConfig {
+  id: string;
+  name: string;
+  type: string;
+  config: Record<string, unknown>;
+  readOnly: boolean;
+  workspaceId: string;
+}
+
+/** Item returned from `listByUri` for the directory-listing tool. */
+export interface DirectoryEntry {
+  name: string;
+  type: "file" | "directory";
+  /** URI suitable for read_file / further list_directory calls. */
+  uri: string;
+}
+
+export interface ListResult {
+  uri: string;
+  entries: DirectoryEntry[];
+}
+
+export interface ReadResult {
+  content: string;
+  mimeType?: string;
+}
+
+export interface WriteResult {
+  uri: string;
+  bytesWritten: number;
+}
+
 export abstract class BaseConnector {
+  abstract readonly config: ConnectorConfig;
   abstract connect(): Promise<void>;
   abstract disconnect(): Promise<void>;
   abstract listResources(): Promise<MCPResource[]>;
   abstract readResource(uri: string): Promise<MCPResource>;
-  abstract listTools(): Promise<MCPTool[]>;
-  abstract callTool(name: string, args: unknown): Promise<unknown>;
+
+  // ─── URI ownership ─────────────────────────────────────────────
+  /**
+   * Default scheme prefix for this connector. Subclasses can override if
+   * they expose more than one scheme.
+   */
+  uriPrefix(): string {
+    return `${this.config.type}://${this.config.id}/`;
+  }
+
+  /** Whether this connector should handle the given URI. */
+  canHandle(uri: string): boolean {
+    return uri.startsWith(this.uriPrefix());
+  }
+
+  // ─── Generic operations (default = unsupported) ───────────────
+  // Subclasses override the ones they implement. The MCP server calls
+  // these directly from its generic tool handlers.
+
+  async readByUri(_uri: string): Promise<ReadResult> {
+    throw notSupported(this, "read_file");
+  }
+
+  async listByUri(_uri: string, _maxDepth?: number): Promise<ListResult> {
+    throw notSupported(this, "list_directory");
+  }
+
+  async writeByUri(_uri: string, _content: string): Promise<WriteResult> {
+    throw notSupported(this, "write_file");
+  }
+
+  async appendByUri(_uri: string, _content: string): Promise<WriteResult> {
+    throw notSupported(this, "append_file");
+  }
+
+  async deleteByUri(_uri: string): Promise<{ uri: string }> {
+    throw notSupported(this, "delete_file");
+  }
+
+  async createDirectoryByUri(_uri: string): Promise<{ uri: string }> {
+    throw notSupported(this, "create_directory");
+  }
+
+  // ─── Legacy tool API (kept for tests / older callers) ──────────
+  // These are no longer surfaced through the MCP server but some unit
+  // tests still poke them directly. New code should use the URI methods.
+  async listTools(): Promise<MCPTool[]> {
+    return [];
+  }
+  async callTool(_name: string, _args: unknown): Promise<unknown> {
+    throw notSupported(this, "callTool (legacy)");
+  }
+}
+
+function notSupported(c: BaseConnector, op: string): Error {
+  return new Error(
+    `Connector "${c.config.name}" (${c.config.type}) does not support ${op}`
+  );
 }

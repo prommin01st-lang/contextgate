@@ -1,0 +1,16 @@
+meta {
+  name: SSE Connect for test
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/mcp/v1/sse
+  body: none
+  auth: none
+}
+
+headers {
+  x-api-key: {{apiKey}}
+  Accept: text/event-stream
+}

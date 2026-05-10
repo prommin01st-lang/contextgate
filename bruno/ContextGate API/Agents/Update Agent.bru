@@ -1,0 +1,22 @@
+meta {
+  name: Update Agent
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/agents/{{agentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "Updated Agent",
+    "isActive": true
+  }
+}

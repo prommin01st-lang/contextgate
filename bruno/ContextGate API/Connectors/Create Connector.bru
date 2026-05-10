@@ -1,0 +1,33 @@
+meta {
+  name: Create Connector
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/connectors
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "workspaceId": "{{workspaceId}}",
+    "type": "filesystem",
+    "name": "Local Files",
+    "config": {
+      "rootPath": "/data/files",
+      "allowedExtensions": [".txt", ".md", ".json"]
+    },
+    "isActive": true,
+    "readOnly": true
+  }
+}
+
+vars:post-response {
+  connectorId: res.body.data.id
+}

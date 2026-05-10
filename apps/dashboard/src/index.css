@@ -1,0 +1,221 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+   Claude-inspired Design System
+   - Warm cream backgrounds with terracotta accents
+   - Newsreader (serif) for headings, Inter for body
+   - Soft borders, subtle shadows, generous spacing
+   ────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    /* Surfaces — warm cream palette */
+    --background: 40 22% 97%;          /* #fafaf8 warm off-white */
+    --foreground: 30 8% 18%;           /* #312e2a warm dark */
+
+    --card: 0 0% 100%;                 /* pure white */
+    --card-foreground: 30 8% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 8% 18%;
+
+    /* Brand — terracotta/clay (Claude signature) */
+    --primary: 19 55% 53%;             /* #c4703f clay */
+    --primary-foreground: 40 22% 97%;
+
+    --secondary: 35 18% 93%;           /* warm secondary */
+    --secondary-foreground: 30 8% 25%;
+
+    --muted: 35 14% 95%;
+    --muted-foreground: 30 6% 45%;     /* warm gray */
+
+    --accent: 19 55% 53%;
+    --accent-foreground: 40 22% 97%;
+
+    --destructive: 0 65% 51%;
+    --destructive-foreground: 40 22% 97%;
+
+    --border: 35 14% 88%;              /* very subtle warm border */
+    --input: 35 14% 90%;
+    --ring: 19 55% 53%;
+
+    --radius: 0.75rem;                 /* 12px — generous rounding */
+  }
+
+  .dark {
+    --background: 30 8% 9%;            /* deep warm dark */
+    --foreground: 40 22% 95%;
+
+    --card: 30 8% 12%;
+    --card-foreground: 40 22% 95%;
+
+    --popover: 30 8% 12%;
+    --popover-foreground: 40 22% 95%;
+
+    --primary: 19 65% 60%;             /* brighter clay for dark */
+    --primary-foreground: 30 8% 9%;
+
+    --secondary: 30 8% 16%;
+    --secondary-foreground: 40 22% 95%;
+
+    --muted: 30 8% 14%;
+    --muted-foreground: 30 6% 65%;
+
+    --accent: 19 65% 60%;
+    --accent-foreground: 30 8% 9%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 22% 95%;
+
+    --border: 30 8% 18%;
+    --input: 30 8% 18%;
+    --ring: 19 65% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.01em;
+  }
+
+  /* Headings use Newsreader serif (Claude vibe) */
+  h1, h2, h3, h4 {
+    @apply font-serif text-foreground;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  h1 { @apply text-4xl md:text-5xl leading-tight; }
+  h2 { @apply text-2xl md:text-3xl leading-snug; }
+  h3 { @apply text-xl md:text-2xl leading-snug; }
+  h4 { @apply text-lg md:text-xl leading-snug; }
+
+  /* Subtle scrollbars */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Selection */
+  ::selection {
+    background: hsl(var(--primary) / 0.2);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  /* Pill-shaped primary button — Claude style */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full bg-primary px-5 py-2.5
+           text-sm font-medium text-primary-foreground
+           shadow-soft transition-all
+           hover:bg-clay-600 hover:shadow-hover
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full bg-secondary px-5 py-2.5
+           text-sm font-medium text-secondary-foreground
+           border border-border
+           transition-all hover:bg-muted
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-full px-4 py-2 text-sm font-medium
+           text-muted-foreground transition-colors
+           hover:bg-muted hover:text-foreground;
+  }
+
+  /* Card — Claude content surface */
+  .card-claude {
+    @apply rounded-2xl border border-border bg-card
+           shadow-card transition-shadow hover:shadow-hover;
+  }
+
+  /* Input — soft warm */
+  .input-claude {
+    @apply w-full rounded-xl border border-input bg-card
+           px-4 py-2.5 text-sm text-foreground
+           placeholder:text-muted-foreground
+           transition-all
+           focus:outline-none focus:ring-2 focus:ring-ring
+           focus:border-transparent
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Section heading divider */
+  .section-divider {
+    @apply h-px bg-border my-6;
+  }
+
+  /* Status pills — adapt for dark mode */
+  .pill {
+    @apply inline-flex items-center gap-1.5
+           rounded-full px-2.5 py-0.5
+           text-xs font-medium;
+  }
+  .pill-success {
+    @apply bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200
+           dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/60;
+  }
+  .pill-warning {
+    @apply bg-amber-50 text-amber-700 ring-1 ring-amber-200
+           dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/60;
+  }
+  .pill-danger {
+    @apply bg-red-50 text-red-700 ring-1 ring-red-200
+           dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/60;
+  }
+  .pill-info {
+    @apply bg-clay-50 text-clay-700 ring-1 ring-clay-200
+           dark:bg-clay-950/30 dark:text-clay-300 dark:ring-clay-800/60;
+  }
+  .pill-muted {
+    @apply bg-muted text-muted-foreground ring-1 ring-border;
+  }
+}
+
+@layer utilities {
+  /* Subtle dotted background — Claude marketing vibe */
+  .bg-dotted {
+    background-image: radial-gradient(
+      circle,
+      hsl(var(--border)) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+  }
+
+  /* Warm gradient backdrop — adapts in dark mode */
+  .bg-gradient-warm {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--background)) 0%,
+      hsl(var(--muted)) 100%
+    );
+  }
+}

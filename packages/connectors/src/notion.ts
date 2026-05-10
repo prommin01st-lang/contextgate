@@ -4,7 +4,7 @@
  */
 
 import { Client as NotionClient } from "@notionhq/client";
-import { MCPResource, MCPTool, ConnectorConfig, BaseConnector } from "./types.js";
+import { MCPResource, ConnectorConfig, BaseConnector, ReadResult, MCPTool } from "./base.js";
 
 export interface NotionConfig {
   token: string;
@@ -12,16 +12,22 @@ export interface NotionConfig {
   pageIds?: string[];
 }
 
-export class NotionConnector implements BaseConnector {
+export class NotionConnector extends BaseConnector {
   readonly config: ConnectorConfig;
   private client!: NotionClient;
 
   constructor(config: ConnectorConfig) {
+    super();
     this.config = config;
   }
 
+  async readByUri(uri: string): Promise<ReadResult> {
+    const resource = await this.readResource(uri);
+    return { content: resource.text ?? "", mimeType: resource.mimeType };
+  }
+
   async connect(): Promise<void> {
-    const cfg = this.config.config as NotionConfig;
+    const cfg = this.config.config as unknown as NotionConfig;
     this.client = new NotionClient({ auth: cfg.token });
     // Validate token
     await this.client.users.me({});
@@ -32,7 +38,7 @@ export class NotionConnector implements BaseConnector {
   }
 
   async listResources(): Promise<MCPResource[]> {
-    const cfg = this.config.config as NotionConfig;
+    const cfg = this.config.config as unknown as NotionConfig;
     const resources: MCPResource[] = [];
 
     // Search and filter by whitelist
@@ -40,7 +46,8 @@ export class NotionConnector implements BaseConnector {
       page_size: 100,
     });
 
-    for (const item of searchRes.results) {
+    // TODO: update for @notionhq/client v5 types (data_source vs database)
+    for (const item of searchRes.results as any[]) {
       if (item.object === "database") {
         if (cfg.databaseIds == null || cfg.databaseIds.includes(item.id)) {
           const db = item as any;
@@ -69,14 +76,15 @@ export class NotionConnector implements BaseConnector {
 
   async readResource(uri: string): Promise<MCPResource> {
     const parsed = this.parseUri(uri);
-    const cfg = this.config.config as NotionConfig;
+    const cfg = this.config.config as unknown as NotionConfig;
 
     // SECURITY: whitelist enforcement
     if (parsed.type === "database") {
       if (cfg.databaseIds != null && !cfg.databaseIds.includes(parsed.id)) {
         throw new Error(`Database not in whitelist: ${parsed.id}`);
       }
-      const rows = await this.client.databases.query({
+      // TODO: update for @notionhq/client v5 API changes
+      const rows = await (this.client.databases as any).query({
         database_id: parsed.id,
         page_size: 100,
       });
@@ -112,24 +120,47 @@ export class NotionConnector implements BaseConnector {
   async listTools(): Promise<MCPTool[]> {
     return [
       {
-        name: `search_notion_${this.config.id}`,
-        description: `Search Notion pages/databases via ${this.config.name}`,
+        name: `read_page_${this.config.id}`,
+        description: `Read a Notion page via ${this.config.name}`,
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" },
+            pageId: { type: "string", description: "Notion page ID" },
           },
-          required: ["query"],
+          required: ["pageId"],
         },
       },
     ];
   }
 
   async callTool(name: string, args: unknown): Promise<unknown> {
-    return { message: "Not implemented in Phase 1" };
+    if (name === `read_page_${this.config.id}`) {
+      const { pageId } = args as { pageId: string };
+      return this.handleReadPage(pageId);
+    }
+
+    return { message: "Tool not found" };
   }
 
   // ─── private helpers ──────────────────────────────────────────────
+
+  private async handleReadPage(pageId: string): Promise<{ content: string }> {
+    const cfg = this.config.config as unknown as NotionConfig;
+
+    // SECURITY: whitelist enforcement
+    if (cfg.pageIds != null && !cfg.pageIds.includes(pageId)) {
+      throw new Error(`Page not in whitelist: ${pageId}`);
+    }
+
+    const page = await this.client.pages.retrieve({ page_id: pageId });
+    const blocks = await this.client.blocks.children.list({
+      block_id: pageId,
+      page_size: 100,
+    });
+
+    const md = this.blocksToMarkdown(blocks.results as any[]);
+    return { content: md };
+  }
 
   private parseUri(uri: string): { type: "database" | "page"; id: string } {
     const match = uri.match(/^notion:\/\/[^/]+\/(database|page)\/(.+)$/);

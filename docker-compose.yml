@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: contextgate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: contextgate
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d contextgate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - contextgate
+
+  redis:
+    image: redis:7-alpine
+    container_name: contextgate-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - contextgate
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contextgate-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8899
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/contextgate
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      API_AUTH_KEY: ${API_AUTH_KEY}
+    ports:
+      - "8899:8899"
+    volumes:
+      # Local file mounts — รูปแบบ: "<host path>:<container path>:<mode>"
+      # Container path ต้องตรงกับ rootPath ของ Connector ใน Dashboard
+      # mode: ":ro" = read-only (กัน AI เขียน), ":rw" = อ่าน+เขียนได้
+      - "F:/GitHubProject/MCPWebsitemangement/Test Data Local:/data/test-data:rw"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8899/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - contextgate
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: contextgate-dashboard
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8899}
+    ports:
+      - "5899:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - contextgate
+
+volumes:
+  pg_data:
+    driver: local
+
+networks:
+  contextgate:
+    driver: bridge

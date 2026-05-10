@@ -1,0 +1,124 @@
+# ──────────────────────────────────────────────────────────
+# Dependencies & package manager state
+# ──────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnpm-state/
+.yarn/cache
+.yarn/install-state.gz
+
+# ──────────────────────────────────────────────────────────
+# Environment & secrets — NEVER commit real values
+# Keep only the *.example templates
+# ──────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.prod.example
+!.env.test.example
+
+# Caddy / TLS / cert state generated at runtime
+caddy_data/
+caddy_config/
+*.pem
+*.crt
+*.key
+!docs/**/*.pem.example
+
+# Local database backups (may contain real user data)
+backups/
+*.sql.gz
+*.dump
+
+# ──────────────────────────────────────────────────────────
+# Build outputs & TS / Vite artifacts
+# ──────────────────────────────────────────────────────────
+dist/
+build/
+out/
+**/dist/
+**/build/
+**/.next/
+**/.turbo/
+**/.vite/
+*.tsbuildinfo
+.eslintcache
+
+# ──────────────────────────────────────────────────────────
+# Test, coverage, and profiler artifacts
+# ──────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+.vitest-cache/
+junit.xml
+test-results/
+
+# ──────────────────────────────────────────────────────────
+# Logs
+# ──────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ──────────────────────────────────────────────────────────
+# Local Docker / volume mounts
+# ──────────────────────────────────────────────────────────
+docker-data/
+postgres_data/
+redis_data/
+connector_data/
+
+# ──────────────────────────────────────────────────────────
+# Editor / IDE
+# ──────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# ──────────────────────────────────────────────────────────
+# OS-specific cruft
+# ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ──────────────────────────────────────────────────────────
+# Claude Code / agent scratch — local only
+# ──────────────────────────────────────────────────────────
+.claude/
+.agents/
+.skills-cache/
+skills-lock.json
+
+# ──────────────────────────────────────────────────────────
+# Local test data, scratchpads, planning notes
+# (Not for the public repo — these often contain real data)
+# ──────────────────────────────────────────────────────────
+Test Data Local/
+scratch/
+plan.md
+plans/
+TODO.local.md
+
+# ──────────────────────────────────────────────────────────
+# Misc
+# ──────────────────────────────────────────────────────────
+.cache/
+temp/
+tmp/
+*.bak
+*.tmp
+.npm/
+package-lock.json

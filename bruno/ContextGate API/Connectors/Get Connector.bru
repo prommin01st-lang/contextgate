@@ -1,0 +1,15 @@
+meta {
+  name: Get Connector
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/connectors/{{connectorId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

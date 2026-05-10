@@ -1,0 +1,28 @@
+meta {
+  name: Create Agent
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/agents
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "workspaceId": "{{workspaceId}}",
+    "name": "My First Agent",
+    "isActive": true
+  }
+}
+
+vars:post-response {
+  agentId: res.body.data.id
+  apiKey: res.body.apiKey
+}

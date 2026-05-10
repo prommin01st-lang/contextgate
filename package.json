@@ -1,0 +1,33 @@
+{
+  "name": "contextgate",
+  "version": "0.1.0",
+  "description": "Open Source MCP Gateway for Organizations",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @contextgate/core db:generate",
+    "db:migrate": "pnpm --filter @contextgate/core db:migrate",
+    "db:studio": "pnpm --filter @contextgate/core db:studio",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "turbo": "^1.13.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@notionhq/client": "^5.20.0"
+  }
+}

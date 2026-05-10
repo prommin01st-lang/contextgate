@@ -1,0 +1,171 @@
+# ============================================================
+# ContextGate — Production Compose
+#
+# Usage on the production server:
+#   1. Copy .env.prod.example → .env (fill values)
+#   2. Edit volumes section below: point host paths to your data
+#   3. Edit Caddyfile: change domain names
+#   4. docker compose -f docker-compose.prod.yml up -d
+#
+# Differences from docker-compose.yml (dev):
+#   - Pinned image tags (no :latest from registry)
+#   - Caddy reverse proxy with auto-HTTPS (Let's Encrypt)
+#   - Internal network for DB/Redis (no host port exposure)
+#   - Resource limits + restart policies
+#   - Strong env-driven secrets
+#   - Workspace-scoped file mount
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cg-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-contextgate}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Custom config (uncomment if needed)
+      # - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-contextgate}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+    networks:
+      - internal
+    # ⚠️ ห้าม expose port 5432 ออก host
+
+  redis:
+    image: redis:7-alpine
+    container_name: cg-redis
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    networks:
+      - internal
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: contextgate-server:${VERSION:-0.1.0}
+    container_name: cg-server
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 8899
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-contextgate}
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    volumes:
+      # ─── Workspace files (single big mount, sub-paths per connector) ───
+      # บนเครื่อง production ทำให้แน่ใจว่า /srv/contextgate/workspaces มีอยู่
+      # โครงสร้างที่แนะนำ:
+      #   /srv/contextgate/workspaces/<workspace-slug>/<connector-slug>/...
+      - "/srv/contextgate/workspaces:/data/workspaces:rw"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8899/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    networks:
+      - internal
+      - public
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: contextgate-dashboard:${VERSION:-0.1.0}
+    container_name: cg-dashboard
+    restart: always
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks:
+      - public
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: cg-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN}
+      - API_DOMAIN=${API_DOMAIN}
+      - ACME_EMAIL=${ACME_EMAIL}
+    depends_on:
+      - server
+      - dashboard
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - public
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+    internal: true   # ⚠️ ไม่ต่ออินเทอร์เน็ต ป้องกัน DB/Redis รั่ว
+  public:
+    driver: bridge

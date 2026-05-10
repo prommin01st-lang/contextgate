@@ -4,7 +4,7 @@
  */
 
 import { Pool, PoolClient } from "pg";
-import { MCPResource, MCPTool, ConnectorConfig, BaseConnector } from "./types.js";
+import { MCPResource, ConnectorConfig, BaseConnector, ReadResult, MCPTool } from "./base.js";
 
 export interface PostgresConfig {
   host: string;
@@ -20,16 +20,22 @@ export interface PostgresConfig {
 const FORBIDDEN_SQL_RE =
   /\b(insert|update|delete|drop|create|alter|truncate|grant|revoke|execute|call)\b/i;
 
-export class PostgresConnector implements BaseConnector {
+export class PostgresConnector extends BaseConnector {
   readonly config: ConnectorConfig;
   private pool: Pool | null = null;
 
   constructor(config: ConnectorConfig) {
+    super();
     this.config = config;
   }
 
+  async readByUri(uri: string): Promise<ReadResult> {
+    const resource = await this.readResource(uri);
+    return { content: resource.text ?? "", mimeType: resource.mimeType };
+  }
+
   async connect(): Promise<void> {
-    const cfg = this.config.config as PostgresConfig;
+    const cfg = this.config.config as unknown as PostgresConfig;
     this.pool = new Pool({
       host: cfg.host,
       port: cfg.port,
@@ -56,7 +62,7 @@ export class PostgresConnector implements BaseConnector {
   }
 
   async listResources(): Promise<MCPResource[]> {
-    const cfg = this.config.config as PostgresConfig;
+    const cfg = this.config.config as unknown as PostgresConfig;
     const client = await this.pool!.connect();
     try {
       let sql = `
@@ -82,7 +88,7 @@ export class PostgresConnector implements BaseConnector {
 
   async readResource(uri: string): Promise<MCPResource> {
     const tableName = this.parseTableUri(uri);
-    const cfg = this.config.config as PostgresConfig;
+    const cfg = this.config.config as unknown as PostgresConfig;
 
     // SECURITY: whitelist enforcement
     if (cfg.allowedTables != null && !cfg.allowedTables.includes(tableName)) {
