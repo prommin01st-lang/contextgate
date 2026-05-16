@@ -14,6 +14,7 @@ import { toast } from '../stores/toastStore';
 interface Connector {
   id: string;
   name: string;
+  slug: string | null;
   type: string;
   workspaceId: string;
   config: Record<string, unknown>;
@@ -99,6 +100,9 @@ export function Connectors() {
                 Name
               </th>
               <th className="px-6 py-3.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Slug
+              </th>
+              <th className="px-6 py-3.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Type
               </th>
               <th className="px-6 py-3.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -115,21 +119,21 @@ export function Connectors() {
           <tbody className="divide-y divide-border">
             {isLoading && (
               <tr>
-                <td className="px-6 py-8 text-muted-foreground" colSpan={5}>
+                <td className="px-6 py-8 text-muted-foreground" colSpan={6}>
                   Loading connectors…
                 </td>
               </tr>
             )}
             {error && (
               <tr>
-                <td className="px-6 py-8 text-red-600 dark:text-red-400" colSpan={5}>
+                <td className="px-6 py-8 text-red-600 dark:text-red-400" colSpan={6}>
                   Failed to load connectors.
                 </td>
               </tr>
             )}
             {!isLoading && !error && filtered.length === 0 && (
               <tr>
-                <td className="px-6 py-12" colSpan={5}>
+                <td className="px-6 py-12" colSpan={6}>
                   <div className="text-center">
                     <Plug className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" strokeWidth={1.5} />
                     <p className="text-sm font-medium text-foreground">
@@ -147,6 +151,15 @@ export function Connectors() {
             {pageItems.map((c) => (
               <tr key={c.id} className="hover:bg-muted/40 transition-colors">
                 <td className="px-6 py-4 font-medium text-foreground">{c.name}</td>
+                <td className="px-6 py-4">
+                  {c.slug ? (
+                    <code className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                      {c.slug}
+                    </code>
+                  ) : (
+                    <span className="text-muted-foreground/60 text-xs">—</span>
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
                     {c.type}

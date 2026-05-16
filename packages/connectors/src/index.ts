@@ -5,3 +5,4 @@ export * from "./mcp-server.js";
 export { FileSystemConnector } from "./filesystem.js";
 export { PostgresConnector } from "./postgres.js";
 export { NotionConnector } from "./notion.js";
+export * from "./mcp-proxy/index.js";

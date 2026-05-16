@@ -7,6 +7,7 @@ import { ConnectorConfig, BaseConnector } from "./base.js";
 import { FileSystemConnector } from "./filesystem.js";
 import { PostgresConnector } from "./postgres.js";
 import { NotionConnector } from "./notion.js";
+import { MCPProxyStdioConnector } from "./mcp-proxy/proxy-connector.js";
 
 export type ConnectorFactory = (config: ConnectorConfig) => BaseConnector;
 
@@ -36,6 +37,15 @@ export class ConnectorRegistry {
     return this.instances.get(id);
   }
 
+  /** Find a connector by its tool namespace (slug). */
+  getBySlug(slug: string): BaseConnector | undefined {
+    if (!slug) return undefined;
+    for (const inst of this.instances.values()) {
+      if (inst.toolNamespace() === slug) return inst;
+    }
+    return undefined;
+  }
+
   async disconnectAll(): Promise<void> {
     for (const [id, instance] of this.instances) {
       try {
@@ -62,5 +72,9 @@ export class ConnectorRegistry {
     this.register("filesystem", (cfg) => new FileSystemConnector(cfg));
     this.register("postgres", (cfg) => new PostgresConnector(cfg));
     this.register("notion", (cfg) => new NotionConnector(cfg));
+    this.register(
+      "mcp-proxy-stdio",
+      (cfg) => new MCPProxyStdioConnector(cfg)
+    );
   }
 }

@@ -23,6 +23,7 @@ const browseRegistry = new ConnectorRegistry();
 interface BrowseConnectorRow {
   id: string;
   name: string;
+  slug: string | null;
   type: string;
   workspaceId: string;
   config: Record<string, unknown>;
@@ -37,6 +38,7 @@ async function ensureConnector(row: BrowseConnectorRow) {
   const instance = browseRegistry.create({
     id: row.id,
     name: row.name,
+    slug: row.slug ?? "",
     type: row.type,
     config: row.config,
     readOnly: row.readOnly,
@@ -77,6 +79,7 @@ resourceRoutes.get("/", async (c) => {
       const instance = await ensureConnector({
         id: row.id,
         name: row.name,
+        slug: row.slug,
         type: row.type,
         workspaceId: row.workspaceId,
         config: row.config as Record<string, unknown>,

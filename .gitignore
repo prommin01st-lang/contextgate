@@ -54,6 +54,12 @@ coverage/
 junit.xml
 test-results/
 
+# Playwright
+playwright-report/
+playwright/.cache/
+blob-report/
+
+
 # ──────────────────────────────────────────────────────────
 # Logs
 # ──────────────────────────────────────────────────────────

@@ -113,14 +113,24 @@ agentRoutes.post("/", zValidator("json", createSchema), async (c) => {
       );
 
     for (const conn of activeConnectors) {
-      const scheme = schemeForType(conn.type);
-      const pattern = `${scheme}://${conn.id}/**`;
+      let pattern: string;
+      let actions: string[];
+
+      if (conn.type === "mcp-proxy-stdio") {
+        pattern = `mcp-proxy://${conn.id}/tool/**`;
+        actions = ["call"];
+      } else {
+        const scheme = schemeForType(conn.type);
+        pattern = `${scheme}://${conn.id}/**`;
+        actions = ["read", "list"];
+      }
+
       const inserted = await db
         .insert(policies)
         .values({
           agentId: newAgent.id,
           resourcePattern: pattern,
-          actions: ["read", "list"],
+          actions,
         })
         .returning();
       autoPolicies.push({

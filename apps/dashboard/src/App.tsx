@@ -15,6 +15,7 @@ import { Policies } from './pages/Policies';
 import { Audit } from './pages/Audit';
 import { Settings } from './pages/Settings';
 import { Users } from './pages/Users';
+import { Help } from './pages/Help';
 import { Toaster } from './components/ui/Toaster';
 
 function AuthGuard({ children }: { children: ReactNode }) {
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="policies" element={<Policies />} />
             <Route path="audit" element={<Audit />} />
             <Route path="users" element={<Users />} />
+            <Route path="help" element={<Help />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

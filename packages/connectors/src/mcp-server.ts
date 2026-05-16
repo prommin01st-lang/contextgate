@@ -34,7 +34,7 @@ import {
   ListResourceTemplatesRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConnectorRegistry } from "./registry.js";
-import { BaseConnector } from "./base.js";
+import { BaseConnector, MCPTool } from "./base.js";
 
 interface CreateMCPServerOptions {
   /** Per-agent instructions injected into the initialize result. */
@@ -52,7 +52,7 @@ const URI_PROP = {
     "Call list_directory or resources/list first to discover URIs.",
 };
 
-const TOOL_DEFS = [
+const TOOL_DEFS: MCPTool[] = [
   {
     name: "read_file",
     description:
@@ -161,6 +161,55 @@ function toolResult(payload: unknown) {
       },
     ],
   };
+}
+
+// ─── Tool merging for proxy connectors ─────────────────────────
+
+/**
+ * Namespace separator for proxied tools.
+ *
+ * `__` (double underscore) is the only safe choice across LLM providers
+ * because most function-name validators only allow `[a-zA-Z0-9_-]`. We
+ * can't use `:` (Kimi/OpenAI reject), and `-`/`_` are ambiguous because
+ * tool names and slugs both use them.
+ *
+ * Slugs are guaranteed to contain no underscores (regex `[a-z0-9-]`),
+ * so `__` cleanly separates `<slug>__<toolName>`.
+ */
+export const NAMESPACE_SEPARATOR = "__";
+
+/**
+ * Build the merged tool list: static URI-based tools + prefixed connector tools.
+ * Connector tools are prefixed with "<slug>__" to avoid collisions.
+ */
+async function getAllTools(registry: ConnectorRegistry): Promise<MCPTool[]> {
+  const staticTools = [...TOOL_DEFS];
+  const connectors = registry.listConnectors();
+  const extraLists = await Promise.all(
+    connectors.map(async (c) => {
+      try {
+        const tools = await c.listTools();
+        const ns = c.toolNamespace();
+        if (!ns) return tools;
+        return tools.map((t) => ({
+          ...t,
+          name: `${ns}${NAMESPACE_SEPARATOR}${t.name}`,
+          description: `[${c.config.name}] ${t.description}`,
+        }));
+      } catch (err) {
+        console.error(`[MCP] listTools failed for ${c.config.name}:`, err);
+        return [];
+      }
+    })
+  );
+  return staticTools.concat(extraLists.flat());
+}
+
+function findConnectorBySlug(
+  registry: ConnectorRegistry,
+  slug: string
+): BaseConnector | undefined {
+  return registry.listConnectors().find((c) => c.toolNamespace() === slug);
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -422,7 +471,7 @@ export function createMCPServer(
 
   // ─── Tools ────────────────────────────────────────────────
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: TOOL_DEFS };
+    return { tools: await getAllTools(registry) };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
@@ -433,6 +482,19 @@ export function createMCPServer(
       maxDepth?: number;
     };
 
+    // ── Namespaced tool (proxy connector) ─────────────────────
+    const sepIdx = name.indexOf(NAMESPACE_SEPARATOR);
+    if (sepIdx > 0) {
+      const slug = name.slice(0, sepIdx);
+      const originalName = name.slice(sepIdx + NAMESPACE_SEPARATOR.length);
+      const conn = findConnectorBySlug(registry, slug);
+      if (!conn) {
+        throw new Error(`No proxy connector found for namespace "${slug}"`);
+      }
+      return toolResult(await conn.callTool(originalName, args));
+    }
+
+    // ── URI-based generic tools ───────────────────────────────
     if (!a.uri) throw new Error(`Missing required argument 'uri' for ${name}`);
     const conn = findConnectorForUri(registry, a.uri);
 
