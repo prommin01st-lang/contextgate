@@ -83,6 +83,7 @@ export const connectors = pgTable(
       .references(() => workspaces.id, { onDelete: "cascade" }),
     type: varchar("type", { length: 100 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 64 }),
     config: jsonb("config").default({}).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     readOnly: boolean("read_only").default(true).notNull(),
@@ -91,6 +92,7 @@ export const connectors = pgTable(
   },
   (table) => ({
     workspaceIdIdx: index("connectors_workspace_id_idx").on(table.workspaceId),
+    slugIdx: index("connectors_slug_idx").on(table.slug),
     typeIdx: index("connectors_type_idx").on(table.type),
     createdAtIdx: index("connectors_created_at_idx").on(table.createdAt),
   })

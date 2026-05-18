@@ -26,6 +26,7 @@ import { useWorkspaceStore } from '../../stores/workspaceStore';
 interface Connector {
   id: string;
   name: string;
+  slug?: string | null;
   type: string;
   workspaceId: string;
   config: Record<string, unknown>;
@@ -63,11 +64,22 @@ const TYPE_TEMPLATES: Record<string, object> = {
     pageIds: [],
     databaseIds: [],
   },
+  'mcp-proxy-stdio': {
+    command: 'npx',
+    args: ['-y', '@anthropic-ai/playwright-mcp@latest'],
+    env: {},
+    cwd: '',
+    idleTimeoutMs: 300000,
+  },
 };
+
+const TYPES_REQUIRING_SLUG = new Set(['mcp-proxy-stdio']);
+const SLUG_REGEX = /^[a-z][a-z0-9-]{0,31}$/;
 
 export function ConnectorForm({ open, onOpenChange, initial }: Props) {
   const isEdit = Boolean(initial);
   const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
   const [type, setType] = useState('filesystem');
   const [workspaceId, setWorkspaceId] = useState('');
   const [configText, setConfigText] = useState('{}');
@@ -87,6 +99,7 @@ export function ConnectorForm({ open, onOpenChange, initial }: Props) {
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? '');
+      setSlug(initial?.slug ?? '');
       setType(initial?.type ?? 'filesystem');
       setWorkspaceId(initial?.workspaceId ?? selectedWorkspaceId ?? '');
       setConfigText(
@@ -103,8 +116,16 @@ export function ConnectorForm({ open, onOpenChange, initial }: Props) {
       setConfigText(
         JSON.stringify(TYPE_TEMPLATES[newType] ?? {}, null, 2)
       );
+      // Proxy types are typically read-write (they execute commands)
+      if (newType === 'mcp-proxy-stdio') {
+        setReadOnly(false);
+      }
     }
   };
+
+  const slugRequired = TYPES_REQUIRING_SLUG.has(type);
+  const slugInvalid = slug.length > 0 && !SLUG_REGEX.test(slug);
+  const slugMissing = slugRequired && !slug;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -118,13 +139,27 @@ export function ConnectorForm({ open, onOpenChange, initial }: Props) {
       if (isEdit) {
         return api
           .patch(`api/connectors/${initial!.id}`, {
-            json: { name, config, readOnly, isActive },
+            json: {
+              name,
+              ...(slug ? { slug } : {}),
+              config,
+              readOnly,
+              isActive,
+            },
           })
           .json();
       }
       return api
         .post('api/connectors', {
-          json: { workspaceId, type, name, config, readOnly, isActive },
+          json: {
+            workspaceId,
+            type,
+            name,
+            ...(slug ? { slug } : {}),
+            config,
+            readOnly,
+            isActive,
+          },
         })
         .json();
     },
@@ -182,9 +217,47 @@ export function ConnectorForm({ open, onOpenChange, initial }: Props) {
                   <SelectItem value="filesystem">FileSystem</SelectItem>
                   <SelectItem value="postgres">PostgreSQL</SelectItem>
                   <SelectItem value="notion">Notion</SelectItem>
+                  <SelectItem value="mcp-proxy-stdio">
+                    MCP Proxy (stdio)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="cn-slug">
+              Slug{' '}
+              {slugRequired ? (
+                <span className="text-red-600">*</span>
+              ) : (
+                <span className="text-muted-foreground text-xs">(optional)</span>
+              )}
+            </Label>
+            <Input
+              id="cn-slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              placeholder={
+                type === 'mcp-proxy-stdio' ? 'chrome-prod' : 'team-docs'
+              }
+              aria-invalid={slugInvalid || slugMissing}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {type === 'mcp-proxy-stdio'
+                ? `Tools will be exposed as "${slug || '<slug>'}__<toolName>" (e.g. "${slug || 'chrome-prod'}__click")`
+                : 'Optional short identifier — lowercase letters, digits, hyphens (1-32 chars)'}
+            </p>
+            {slugInvalid && (
+              <p className="text-xs text-red-600 mt-1">
+                Slug must start with a letter, then lowercase letters, digits, or hyphens (max 32 chars)
+              </p>
+            )}
+            {slugMissing && (
+              <p className="text-xs text-red-600 mt-1">
+                Slug is required for this connector type
+              </p>
+            )}
           </div>
 
           {!isEdit && (
@@ -245,7 +318,12 @@ export function ConnectorForm({ open, onOpenChange, initial }: Props) {
             </Button>
             <Button
               type="submit"
-              disabled={mutation.isPending || (!isEdit && !workspaceId)}
+              disabled={
+                mutation.isPending ||
+                (!isEdit && !workspaceId) ||
+                slugInvalid ||
+                slugMissing
+              }
             >
               {mutation.isPending
                 ? 'Saving…'

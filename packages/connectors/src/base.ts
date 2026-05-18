@@ -31,6 +31,7 @@ export interface MCPTool {
 export interface ConnectorConfig {
   id: string;
   name: string;
+  slug: string;
   type: string;
   config: Record<string, unknown>;
   readOnly: boolean;
@@ -66,6 +67,16 @@ export abstract class BaseConnector {
   abstract disconnect(): Promise<void>;
   abstract listResources(): Promise<MCPResource[]>;
   abstract readResource(uri: string): Promise<MCPResource>;
+
+  // ─── Slug / namespace ──────────────────────────────────────────
+  /**
+   * Human-readable namespace for tools exposed by this connector.
+   * Proxy connectors use their slug (e.g. "chrome-prod"); URI-based
+   * connectors return an empty string.
+   */
+  toolNamespace(): string {
+    return this.config.slug ?? "";
+  }
 
   // ─── URI ownership ─────────────────────────────────────────────
   /**
@@ -109,14 +120,22 @@ export abstract class BaseConnector {
     throw notSupported(this, "create_directory");
   }
 
-  // ─── Legacy tool API (kept for tests / older callers) ──────────
-  // These are no longer surfaced through the MCP server but some unit
-  // tests still poke them directly. New code should use the URI methods.
+  // ─── Tool API (for MCP proxy connectors) ───────────────────────
+  /**
+   * Return externally-defined tools exposed by this connector.
+   * Tool names are automatically prefixed with the connector's slug
+   * when surfaced through the MCP server.
+   */
   async listTools(): Promise<MCPTool[]> {
     return [];
   }
-  async callTool(_name: string, _args: unknown): Promise<unknown> {
-    throw notSupported(this, "callTool (legacy)");
+
+  /**
+   * Execute a tool by name. `name` is the ORIGINAL name (without the
+   * slug prefix). Implementations receive the raw JSON arguments.
+   */
+  async callTool(_name: string, _args: Record<string, unknown>): Promise<unknown> {
+    throw notSupported(this, "callTool");
   }
 }
 

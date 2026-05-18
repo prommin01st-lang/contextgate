@@ -155,6 +155,12 @@ const httpSessions = new Map<string, StreamableHttpTransport>();
 // another agent's MCP session.
 const agentRegistries = new Map<string, ConnectorRegistry>();
 
+// Per-agent signature of the last-built connector set (sorted "id:updatedAt"
+// joined with newlines). Lets us skip a full disconnectAll+rebuild when the
+// DB hasn't changed — critical for proxy connectors whose child processes
+// would otherwise be killed and re-spawned on every MCP request.
+const agentRegistrySignatures = new Map<string, string>();
+
 // ───────────────────────────────────────────────────────────────
 // Policy enforcement + audit log helper
 // ───────────────────────────────────────────────────────────────
@@ -192,8 +198,42 @@ async function authorizeAndAudit(
 ): Promise<JSONRPCMessage | null> {
   if (!isToolCallRequest(message)) return null;
 
-  const ctx = extractToolContext(message.params.name, message.params.arguments);
-  if (!ctx) return null; // not a connector-scoped tool — let SDK handle
+  const toolName = message.params.name;
+  let ctx: { connectorId: string; action: string; uri: string } | null = null;
+
+  // ── Namespaced tool (proxy connector) ──────────────────────
+  // Tool names look like "<slug>__<toolName>". The `__` separator is
+  // safe across LLM providers (Kimi/OpenAI etc. reject `:` in function
+  // names; their validators accept only [a-zA-Z0-9_-]).
+  const NAMESPACE_SEP = "__";
+  const sepIdx = toolName.indexOf(NAMESPACE_SEP);
+  if (sepIdx > 0) {
+    const slug = toolName.slice(0, sepIdx);
+    const originalName = toolName.slice(sepIdx + NAMESPACE_SEP.length);
+    const rows = await db
+      .select({ id: connectorsTable.id })
+      .from(connectorsTable)
+      .where(
+        and(
+          eq(connectorsTable.workspaceId, workspaceId),
+          eq(connectorsTable.slug, slug)
+        )
+      )
+      .limit(1);
+    if (rows.length > 0) {
+      ctx = {
+        connectorId: rows[0].id,
+        action: "call",
+        uri: `mcp-proxy://${rows[0].id}/tool/${originalName}`,
+      };
+    }
+  }
+
+  // ── URI-based generic tools ───────────────────────────────
+  if (!ctx) {
+    ctx = extractToolContext(toolName, message.params.arguments);
+    if (!ctx) return null; // not a connector-scoped tool — let SDK handle
+  }
 
   const decision = await policyEngine.check(agentId, ctx.uri, ctx.action);
 
@@ -204,7 +244,7 @@ async function authorizeAndAudit(
     resourceUri: ctx.uri,
     status: decision.allowed ? "allowed" : "denied",
     details: {
-      tool: message.params.name,
+      tool: toolName,
       args: message.params.arguments,
       reason: decision.reason,
       matchedPolicyId: decision.matchedPolicyId,
@@ -240,10 +280,14 @@ async function getAgentWorkspace(agentId: string): Promise<string | null> {
 /**
  * Hydrate the registry with active connectors from the agent's workspace.
  *
- * Returns a registry scoped to this agent. Stale instances (connectors that
- * were deleted, deactivated, or moved to another workspace) are disconnected
- * and removed before re-creating the current set, so what the MCP server
- * sees always matches the database.
+ * Smart caching: computes a signature ("id:updatedAt" tuples sorted) over
+ * the current connector set. If the signature matches the last-built one
+ * we return the cached registry as-is — no `disconnectAll` and no
+ * re-instantiation. This is essential for stdio MCP proxy connectors
+ * because tearing down their child processes on every request would
+ * make spawn cost (~3s for Chrome) dominate every tool call.
+ *
+ * On signature mismatch we do a hard rebuild (the previous behavior).
  */
 async function getAgentRegistry(agentId: string): Promise<ConnectorRegistry> {
   let registry = agentRegistries.get(agentId);
@@ -270,31 +314,27 @@ async function getAgentRegistry(agentId: string): Promise<ConnectorRegistry> {
       )
     );
 
-  const liveIds = new Set(connectorRows.map((r) => r.id));
+  // Compute a stable signature: "id:updatedAt" lines sorted by id.
+  const signature = connectorRows
+    .map((r) => `${r.id}:${r.updatedAt?.toISOString?.() ?? ""}`)
+    .sort()
+    .join("\n");
 
-  // 1) Drop instances that are no longer in DB (or moved away)
-  for (const existing of registry.listConnectors()) {
-    if (!liveIds.has(existing.config.id)) {
-      try {
-        await existing.disconnect();
-      } catch {
-        /* ignore */
-      }
-      // ConnectorRegistry doesn't expose remove(), so we re-construct it
-      // below if needed. For simplicity just disconnect — listConnectors()
-      // will still include it until we rebuild. So instead we rebuild:
-    }
+  const prevSignature = agentRegistrySignatures.get(agentId);
+  if (prevSignature === signature && registry.listConnectors().length > 0) {
+    // Nothing changed — reuse the live registry, keep child processes alive.
+    return registry;
   }
-  // Hard rebuild: clear all and re-add. Cheap because connectors are just
-  // adapters over already-validated config.
+
+  // Either first hydration or DB changed — do a hard rebuild.
   await registry.disconnectAll();
 
-  // 2) Add fresh instances for every live connector
   for (const row of connectorRows) {
     try {
       const instance = registry.create({
         id: row.id,
         name: row.name,
+        slug: row.slug ?? "",
         type: row.type,
         config: row.config as Record<string, unknown>,
         readOnly: row.readOnly,
@@ -312,6 +352,7 @@ async function getAgentRegistry(agentId: string): Promise<ConnectorRegistry> {
     }
   }
 
+  agentRegistrySignatures.set(agentId, signature);
   return registry;
 }
 

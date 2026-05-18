@@ -11,6 +11,7 @@ import {
   Sparkles,
   Briefcase,
   Users as UsersIcon,
+  BookOpen,
 } from 'lucide-react';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { WorkspaceForm } from '../forms/WorkspaceForm';
@@ -25,6 +26,7 @@ const baseLinks = [
   { to: '/policies', label: 'Policies', icon: Shield, adminOnly: false },
   { to: '/audit', label: 'Audit', icon: ClipboardList, adminOnly: false },
   { to: '/users', label: 'Users', icon: UsersIcon, adminOnly: true },
+  { to: '/help', label: 'Help', icon: BookOpen, adminOnly: false },
   { to: '/settings', label: 'Settings', icon: Settings, adminOnly: false },
 ];
 

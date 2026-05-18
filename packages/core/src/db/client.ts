@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
 const connectionString =
   process.env.DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/contextgate";
+  "postgresql://postgres:Tong042772314.@localhost:5432/mcp_gateway";
 
 export const pool = new Pool({ connectionString });
 
